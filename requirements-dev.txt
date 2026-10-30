@@ -1,0 +1,8 @@
+# Extra dependencies for rebuilding data, retraining, evaluation and tests
+-r requirements.txt
+pytest==9.1.1
+datasets==5.1.0
+# optional: external DeBERTa baseline (downloads ~740 MB)
+onnxruntime==1.29.0
+tokenizers==0.23.3
+huggingface_hub==2.4.0

@@ -1,0 +1,77 @@
+{
+  "model": "protectai/deberta-v3-base-prompt-injection-v2",
+  "license": "Apache-2.0",
+  "note": "whole-document classification, truncated to 512 tokens; label INJECTION = flagged",
+  "sets": {
+    "indirect": {
+      "n": 1344,
+      "tp": 324,
+      "fp": 0,
+      "fn": 348,
+      "tn": 672,
+      "precision": 1.0,
+      "recall": 0.4821,
+      "f1": 0.6506,
+      "fpr": 0.0,
+      "fnr": 0.5179
+    },
+    "obfuscated": {
+      "n": 300,
+      "tp": 103,
+      "fp": 0,
+      "fn": 197,
+      "tn": 0,
+      "precision": 1.0,
+      "recall": 0.3433,
+      "f1": 0.5112,
+      "fpr": null,
+      "fnr": 0.6567
+    },
+    "benign_ood": {
+      "n": 1030,
+      "tp": 0,
+      "fp": 47,
+      "fn": 0,
+      "tn": 983,
+      "precision": 0.0,
+      "recall": null,
+      "f1": null,
+      "fpr": 0.0456,
+      "fnr": null
+    },
+    "deepset_external": {
+      "n": 116,
+      "tp": 22,
+      "fp": 0,
+      "fn": 38,
+      "tn": 56,
+      "precision": 1.0,
+      "recall": 0.3667,
+      "f1": 0.5366,
+      "fpr": 0.0,
+      "fnr": 0.6333
+    }
+  },
+  "breakdowns": {
+    "indirect:subset=indirect": 0.525,
+    "indirect:subset=subtle": 0.125,
+    "indirect:position=head": 0.6518,
+    "indirect:position=middle": 0.3839,
+    "indirect:position=tail": 0.4107,
+    "obfuscated:subset=obfuscated": 0.3433,
+    "obfuscated:obfuscation=base64": 0.0,
+    "obfuscated:obfuscation=hidden_css": 0.8,
+    "obfuscated:obfuscation=homoglyph": 0.2,
+    "obfuscated:obfuscation=html_comment": 0.42,
+    "obfuscated:obfuscation=tag_chars": 0.0,
+    "obfuscated:obfuscation=zero_width": 0.64,
+    "benign_fpr:dolly_benign": 0.041,
+    "benign_fpr:hard_negative": 0.2,
+    "deepset_external:subset=deepset": 0.3667
+  },
+  "latency_ms": {
+    "mean": 243.0,
+    "p95": 623.6,
+    "hardware": "2 vCPU cloud container, CPU only, measured locally"
+  }
+}
