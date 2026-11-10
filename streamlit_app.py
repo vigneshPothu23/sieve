@@ -39,6 +39,7 @@ from sieve.auth import (  # noqa: E402
     set_user_active,
 )
 from ui.login import LOGIN_HEADER, inject_login_css, login_hero  # noqa: E402
+from ui.nexus import account_card, audit_strip, inject_nexus_css, nexus_header, panel_label  # noqa: E402
 from ui.theme import inject_css  # noqa: E402
 
 inject_css()
@@ -100,63 +101,76 @@ def password_change_screen(user: dict) -> None:
 
 def admin_page() -> None:
     user = st.session_state["sieve_user"]
-    st.title("Nexus")
-    st.caption("Account and access management")
-    st.markdown("Create accounts for the three operational workspaces. Each account receives one role.")
-    with st.expander("Create a user account", expanded=True):
-        with st.form("create_user_form", clear_on_submit=True):
-            username = st.text_input("Username")
-            display_name = st.text_input("Display name")
-            role = st.selectbox(
-                "Role",
-                options=["inspect", "firewall", "evaluation"],
-                format_func=lambda value: f"{ROLE_LABELS[value]} — {ROLE_DESCRIPTIONS[value]}",
-            )
-            temporary_password = st.text_input("Temporary password (minimum 12 characters)", type="password")
-            submitted = st.form_submit_button("Create account", type="primary")
-        if submitted:
-            try:
-                create_user(username, display_name, role, temporary_password)
-                st.success(f"Account '{username}' created. The user must change the temporary password at first login.")
-                st.rerun()
-            except Exception as exc:
-                st.error(str(exc))
+    inject_nexus_css()
+    nexus_header(user["display_name"], user["username"])
+    # Messages from the previous action survive the rerun that follows it.
+    flash = st.session_state.pop("nexus_flash", None)
+    if flash:
+        st.success(flash)
+    st.markdown(
+        '<h1 class="sv-nexus-h1">Nexus</h1>'
+        '<p class="sv-nexus-sub">Create accounts for the three operational workspaces. Each account receives one role.</p>',
+        unsafe_allow_html=True,
+    )
 
-    st.subheader("Accounts")
+    # Nexus manages operational accounts only; the signed-in administrator is shown in the header.
     users = list_users()
-    if users:
-        st.dataframe(
-            [
-                {
-                    "Username": item["username"],
-                    "Name": item["display_name"],
-                    "Role": ROLE_LABELS.get(item["role"], item["role"]),
-                    "Status": "Active" if item["is_active"] else "Inactive",
-                    "Password change required": item["must_change_password"],
-                    "Last login": item["last_login"] or "Never",
-                }
-                for item in users
-            ],
-            use_container_width=True,
-            hide_index=True,
-        )
-        candidates = [item for item in users if item["username"] != user["username"]]
-        if candidates:
-            selected = st.selectbox("Manage account", candidates, format_func=lambda item: f'{item["username"]} · {ROLE_LABELS[item["role"]]}')
-            if selected:
-                target_active = not selected["is_active"]
-                action = "Activate" if target_active else "Deactivate"
-                if st.button(f"{action} {selected['username']}"):
-                    try:
-                        set_user_active(selected["username"], target_active)
-                        st.success(f"{selected['username']} updated.")
-                        st.rerun()
-                    except Exception as exc:
-                        st.error(str(exc))
+    operational = [item for item in users if item["role"] != "admin"]
 
-    with st.expander("Recent audit events"):
-        events = get_audit_events(100)
-        st.dataframe(events, use_container_width=True, hide_index=True) if events else st.caption("No audit events yet.")
+    left, right = st.columns([1.15, 1], gap="large")
+    with left:
+        with st.container(border=True, key="sv-panel-accounts"):
+            st.markdown(
+                panel_label("Operational accounts & assigned workspaces", '<span class="sv-pill">1 role / account</span>'),
+                unsafe_allow_html=True,
+            )
+            if not operational:
+                st.caption("No operational accounts yet. Create one on the right.")
+            for item in operational:
+                with st.container(border=True, key=f"sv-card-{item['id']}"):
+                    info, action = st.columns([3, 1.6], vertical_alignment="center")
+                    with info:
+                        st.markdown(account_card(item), unsafe_allow_html=True)
+                    with action:
+                        target_active = not item["is_active"]
+                        label = "Activate" if target_active else "Deactivate"
+                        key_prefix = "act" if target_active else "deact"
+                        if st.button(label, key=f"{key_prefix}-{item['id']}", width="stretch"):
+                            try:
+                                set_user_active(item["username"], target_active)
+                                st.session_state["nexus_flash"] = f"{item['username']} updated."
+                                st.rerun()
+                            except Exception as exc:
+                                st.error(str(exc))
+
+            events = get_audit_events(2)
+            if events:
+                st.markdown(audit_strip(events), unsafe_allow_html=True)
+            with st.expander("All audit events"):
+                all_events = get_audit_events(100)
+                st.dataframe(all_events, width="stretch", hide_index=True) if all_events else st.caption("No audit events yet.")
+
+    with right:
+        with st.container(border=True, key="sv-panel-create"):
+            st.markdown(panel_label("Create operational account"), unsafe_allow_html=True)
+            with st.form("create_user_form", clear_on_submit=True, border=False):
+                username = st.text_input("New username")
+                display_name = st.text_input("Display name")
+                role = st.selectbox(
+                    "Assign workspace role",
+                    options=["inspect", "firewall", "evaluation"],
+                    format_func=lambda value: f"{ROLE_LABELS[value]} — {ROLE_DESCRIPTIONS[value]}",
+                )
+                temporary_password = st.text_input("Temporary password (minimum 12 characters)", type="password")
+                submitted = st.form_submit_button("+ Create account", type="primary", width="stretch")
+            st.caption("The user must change the temporary password at first sign-in.")
+            if submitted:
+                try:
+                    create_user(username, display_name, role, temporary_password)
+                    st.session_state["nexus_flash"] = f"Account '{username}' created. The user must change the temporary password at first login."
+                    st.rerun()
+                except Exception as exc:
+                    st.error(str(exc))
 
 
 def logout() -> None:
