@@ -15,7 +15,6 @@ HERO_ALT = "SIEVE: read everything, trust nothing blindly. Illustration of a per
 
 LOGIN_HEADER = (
     '<div class="sv-login">'
-    '<span class="sv-login-pill">STEP 01 // SIGN IN</span>'
     '<h1 class="sv-login-title">Welcome back</h1>'
     '<p class="sv-login-sub">Routes directly to your assigned workspace.</p>'
     "</div>"
@@ -35,15 +34,13 @@ _LOGIN_CSS = """
 [data-testid="stApp"]:has(.sv-login) p,
 [data-testid="stApp"]:has(.sv-login) label { font-family: 'Inter', system-ui, sans-serif; }
 
-.sv-login-pill {
-  display: inline-block; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: .16em;
-  color: #B4D955; border: 1px solid rgba(180, 217, 85, .45); border-radius: 999px; padding: 6px 14px;
-}
 .sv-login-title { color: #F2EFE6 !important; font-size: 42px !important; font-weight: 600 !important;
-  letter-spacing: -.02em !important; line-height: 1.1 !important; margin: 1.1rem 0 .5rem !important; }
+  letter-spacing: -.02em !important; line-height: 1.1 !important; margin: 0 0 .5rem !important; }
 .sv-login-sub { color: #8CA196 !important; font-size: 16px; line-height: 1.55; margin: 0 0 1.6rem; max-width: 38ch; }
 
+/* Illustration: scales naturally to its column; no expand/zoom control */
 [data-testid="stApp"]:has(.sv-login) [data-testid="stImage"] img { border-radius: 14px; border: 1px solid #2B3A33; }
+[data-testid="stApp"]:has(.sv-login) [data-testid="stElementToolbar"] { display: none !important; }
 
 [data-testid="stApp"]:has(.sv-login) [data-testid="stForm"] { border: none; padding: 0; background: transparent; }
 [data-testid="stApp"]:has(.sv-login) [data-testid="stWidgetLabel"] p {
