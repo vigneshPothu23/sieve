@@ -18,6 +18,7 @@ from sieve.rules import RULES
 from sieve.samples import AGENT_SCENARIOS, SAMPLES
 from sieve.sanitize import sanitize
 
+from . import prism as pr
 from .theme import (COBALT, INK, LINE, VERDICT, VERDICT_WORD, bar, esc, pill, render_document,
                     verdict_strip)
 
@@ -93,10 +94,13 @@ def _why(result) -> str:
     return msg
 
 
-# ---------------------------------------------------------------------------- Inspect
+# ---------------------------------------------------------------------------- Inspect (Prism)
 def inspect_page() -> None:
-    st.title("Inspect untrusted content")
-    st.markdown("<p class='sv-lede'>Paste a web page, e-mail, retrieved document or tool output that an AI system is about "
+    user = st.session_state.get("sieve_user") or {}
+    pr.inject_prism_css()
+    pr.prism_header(user.get("display_name", ""), user.get("username", ""))
+    st.markdown("<h1 class='sv-prism-h1'>Inspect untrusted content</h1>"
+                "<p class='sv-prism-sub'>Paste a web page, e-mail, retrieved document or tool output that an AI system is about "
                 "to read. Sieve marks the segments that try to instruct the AI, shows exactly why, and produces a cleaned "
                 "version you can pass on.</p>", unsafe_allow_html=True)
 
@@ -124,7 +128,11 @@ def inspect_page() -> None:
         except Exception as exc:  # pragma: no cover - defensive
             st.error(f"Could not read the file as text: {exc}")
 
-    go_btn = st.button("Inspect content", type="primary", disabled=not text.strip())
+    b1, b2, _ = st.columns([1.2, 1, 3], vertical_alignment="center")
+    go_btn = b1.button("Run inspection", type="primary", disabled=not text.strip(), width="stretch")
+    if b2.button("Clear result", width="stretch"):
+        st.session_state.pop("last", None)
+        st.rerun()
     if go_btn:
         try:
             with st.spinner("Scanning …"):
@@ -138,53 +146,58 @@ def inspect_page() -> None:
                              "preview": text.strip()[:70].replace("\n", " ")})
 
     if "last" not in st.session_state:
-        st.info("Choose a sample or paste content, then select **Inspect content**. Try the hidden-instruction web page "
+        st.markdown(pr.pipeline(None), unsafe_allow_html=True)
+        st.info("Choose a sample or paste content, then select **Run inspection**. Try the hidden-instruction web page "
                 "first to see a blocked segment.")
         _history_table()
         return
 
     res, src = st.session_state["last"]
-    st.markdown(verdict_strip(res.verdict, _why(res), res.risk, res.latency_ms), unsafe_allow_html=True)
+    st.markdown(pr.pipeline(res), unsafe_allow_html=True)
+    st.markdown(pr.verdict_card(res, _why(res)), unsafe_allow_html=True)
 
-    left, right = st.columns([3, 2], gap="large")
+    left, mid, right = st.columns([1.15, 1, 1.15], gap="medium")
     with left:
-        st.markdown("#### The content, as the model would read it")
-        st.html(render_document(res))
-        st.caption("Hidden text (HTML comments, CSS-hidden elements, invisible Unicode, Base64) is surfaced inline, "
-                   "because the AI reads it even when people cannot see it.")
+        with st.container(border=True, key="sv-panel-segments"):
+            st.markdown(pr.panel_label("01 · Normalised segments",
+                                       f'<span class="sv-pill">{len(res.segments)} segment(s)</span>'),
+                        unsafe_allow_html=True)
+            st.markdown(pr.segment_cards(res), unsafe_allow_html=True)
+            st.caption("Hidden text (HTML comments, CSS-hidden elements, invisible Unicode, Base64) is shown inline, "
+                       "because the AI reads it even when people cannot see it.")
+    with mid:
+        with st.container(border=True, key="sv-panel-evidence"):
+            _evidence(res)
     with right:
-        _evidence(res)
+        with st.container(border=True, key="sv-panel-output"):
+            _sanitised_output(res, src)
+    _history_table()
 
-    st.markdown("#### Cleaned context for your LLM")
-    o1, o2 = st.columns(2)
-    with o1:
-        level = st.radio("Remove segments at", ["Needs review and above", "Blocked only"], horizontal=True)
-    with o2:
-        dm = st.toggle("Datamark words (spotlighting)", value=False,
-                       help="Interleaves a marker between words so the model can tell data from instructions (Hines et al., 2024).")
+
+def _sanitised_output(res, src: str) -> None:
+    st.markdown(pr.panel_label("03 · Sanitised output"), unsafe_allow_html=True)
+    level = st.radio("Remove segments at", ["Needs review and above", "Blocked only"], horizontal=True)
+    dm = st.toggle("Datamark words (spotlighting)", value=False,
+                   help="Interleaves a marker between words so the model can tell data from instructions (Hines et al., 2024).")
     san = sanitize(res, remove_level=REVIEW if level.startswith("Needs") else BLOCK, datamark=dm, source_label=src)
     st.markdown(f"<span class='sv-note'>{len(san.removed)} segment(s) removed, {san.kept} kept. Cleaning lowers risk; "
                 "it does not make the content trustworthy.</span>", unsafe_allow_html=True)
     st.code(san.llm_context, language=None, wrap_lines=True)
-    d1, d2, _ = st.columns([1, 1, 2])
     report = res.to_dict()
     report["sanitized"] = {"text": san.text, "llm_context": san.llm_context, "removed_segments": san.removed}
-    d1.download_button("Download report (JSON)", json.dumps(report, indent=2, default=str), "sieve-report.json",
-                       "application/json", use_container_width=True)
-    d2.download_button("Download cleaned text", san.text, "sieve-cleaned.txt", "text/plain", use_container_width=True)
-    _history_table()
+    st.download_button("Download report (JSON)", json.dumps(report, indent=2, default=str), "sieve-report.json",
+                       "application/json", width="stretch")
+    st.download_button("Download cleaned text", san.text, "sieve-cleaned.txt", "text/plain", width="stretch")
 
 
 def _evidence(res) -> None:
     sc = get_scanner()
     hidden = [f for f in res.findings if f.kind in FINDING_TEXT]
-    st.markdown("#### Evidence")
+    st.markdown(pr.panel_label("02 · Evidence & why"), unsafe_allow_html=True)
     if hidden:
         for f in hidden:
-            ex = f"<span class='excerpt'>{esc(f.excerpt)}</span>" if f.excerpt else ""
-            detail = f" — {esc(f.detail)}" if f.kind in ("zero_width", "homoglyph") else ""
-            st.markdown(f"<div class='sv-finding'><b>{esc(FINDING_TEXT[f.kind])}</b>{detail}{ex}</div>",
-                        unsafe_allow_html=True)
+            detail = f.detail if f.kind in ("zero_width", "homoglyph") else ""
+            st.markdown(pr.hidden_finding(FINDING_TEXT[f.kind], detail, f.excerpt), unsafe_allow_html=True)
     flagged = sorted(res.flagged, key=lambda s: -s.prob)
     if not flagged:
         top = max(res.segments, key=lambda s: s.prob) if res.segments else None
@@ -195,17 +208,17 @@ def _evidence(res) -> None:
         return
     for s in flagged[:6]:
         with st.expander(f"Segment {s.index + 1} — {VERDICT_WORD[s.verdict]}, risk {s.risk:.0f}", expanded=s is flagged[0]):
-            st.markdown(bar(s.risk, VERDICT[s.verdict]), unsafe_allow_html=True)
-            st.markdown(f"<p style='font-family:Newsreader,serif'>{esc(s.text[:400])}</p>", unsafe_allow_html=True)
-            rows = [{"Signal": sc.model.fusion_label(k), "Contribution": v} for k, v in s.fusion_terms.items() if abs(v) > 0.01]
-            rows.append({"Signal": "Baseline (intercept)", "Contribution": round(sc.model.fusion_intercept, 3)})
+            st.markdown(pr.risk_bar(s.risk, s.verdict), unsafe_allow_html=True)
+            st.markdown(f'<div class="sv-seg-text">{esc(s.text[:400])}</div>', unsafe_allow_html=True)
+            rows = [(sc.model.fusion_label(k), v) for k, v in s.fusion_terms.items() if abs(v) > 0.01]
+            rows.sort(key=lambda r: -r[1])
             st.markdown("**Why this score** — contributions to the log-odds, which sum to the final score:")
-            st.dataframe(pd.DataFrame(rows).sort_values("Contribution", ascending=False), hide_index=True,
-                         use_container_width=True, column_config={"Contribution": st.column_config.NumberColumn(format="%+.2f")})
+            st.markdown(pr.fusion_table(rows, round(sc.model.fusion_intercept, 3)), unsafe_allow_html=True)
             if s.rule_hits:
                 st.markdown("**Matched rules**")
                 for h in s.rule_hits[:5]:
-                    st.markdown(f"{esc(h.label)}: <span class='sv-match'>{esc(h.match[:90])}</span>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='sv-rule'>{esc(h.label)}: <span class='sv-match'>{esc(h.match[:90])}</span></div>",
+                                unsafe_allow_html=True)
             contribs = [c for c in sc.model.explain(s.text, k=10) if c.weight > 0][:6]
             if contribs:
                 st.markdown("**Text features pushing the model towards *injection***")
@@ -217,9 +230,9 @@ def _history_table() -> None:
     h = history()
     if not h:
         return
-    st.markdown("#### This session's scans")
-    st.dataframe(pd.DataFrame(h), hide_index=True, use_container_width=True,
-                 column_config={"risk": st.column_config.ProgressColumn("risk", min_value=0, max_value=100, format="%d")})
+    with st.container(border=True, key="sv-panel-history"):
+        st.markdown(pr.panel_label("This session's scans"), unsafe_allow_html=True)
+        st.markdown(pr.history_table(h), unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------- Agent firewall
