@@ -28,6 +28,9 @@ _LOGIN_CSS = """
 [data-testid="stApp"]:has(.sv-login) { background: #121B17; }
 [data-testid="stApp"]:has(.sv-login) header[data-testid="stHeader"] { background: transparent; }
 [data-testid="stApp"]:has(.sv-login) .block-container { max-width: 1280px; padding-top: 4rem; }
+@media (min-width: 900px) {
+  [data-testid="stApp"]:has(.sv-login) .block-container { padding-top: 16vh; }
+}
 [data-testid="stApp"]:has(.sv-login) h1,
 [data-testid="stApp"]:has(.sv-login) p,
 [data-testid="stApp"]:has(.sv-login) label { font-family: 'Inter', system-ui, sans-serif; }
