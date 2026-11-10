@@ -18,6 +18,7 @@ from sieve.rules import RULES
 from sieve.samples import AGENT_SCENARIOS, SAMPLES
 from sieve.sanitize import sanitize
 
+from . import aegis as ag
 from . import prism as pr
 from .theme import (COBALT, INK, LINE, VERDICT, VERDICT_WORD, bar, esc, pill, render_document,
                     verdict_strip)
@@ -235,27 +236,40 @@ def _history_table() -> None:
         st.markdown(pr.history_table(h), unsafe_allow_html=True)
 
 
-# ---------------------------------------------------------------------------- Agent firewall
+# ---------------------------------------------------------------------------- Agent firewall (Aegis)
 def agent_page() -> None:
-    st.title("Agent firewall")
-    st.markdown("<p class='sv-lede'>The same task, run twice by a deliberately gullible agent that obeys any instruction "
+    user = st.session_state.get("sieve_user") or {}
+    ag.inject_aegis_css()
+    ag.aegis_header(user.get("display_name", ""), user.get("username", ""))
+    st.markdown("<h1 class='sv-aegis-h1'>Agent firewall</h1>"
+                "<p class='sv-aegis-sub'>The same task, run twice by a deliberately gullible agent that obeys any instruction "
                 "it reads. Without Sieve, injected instructions become tool calls. With Sieve, the policy gate decides "
-                "which calls may run — denied calls never reach the tool.</p>", unsafe_allow_html=True)
-    st.warning("Simulation: the agent is a rule-based stand-in for a fully compromised LLM, and every tool acts on an "
-               "in-memory sandbox. No e-mail, network request, payment or deletion happens.", icon=":material/science:")
+                "which calls may run. Denied calls never reach the tool.</p>", unsafe_allow_html=True)
+    st.markdown(ag.sim_banner(), unsafe_allow_html=True)
 
-    name = st.selectbox("Scenario", list(AGENT_SCENARIOS))
-    sc = AGENT_SCENARIOS[name]
-    st.markdown(f"**User's request:** {esc(sc['task'])}", unsafe_allow_html=True)
-    docs = []
-    for i, d in enumerate(sc["documents"]):
-        docs.append(st.text_area(f"Document {i + 1} the agent reads", d, height=110, key=f"{name}-{i}"))
-    c1, c2 = st.columns(2)
-    san = c1.toggle("Also clean documents before the agent reads them", value=False,
-                    help="Off: the agent reads the raw documents and only the policy gate protects it. On: flagged segments are removed first, so most injected calls are never proposed.")
-    conf = c2.toggle("A human approves actions that need confirmation", value=False,
-                     help="Simulates a person clicking 'approve' on CONFIRM decisions. Denied calls stay denied.")
-    if not st.button("Run both agents", type="primary"):
+    left, right = st.columns([1.15, 1], gap="large")
+    with left:
+        with st.container(border=True, key="sv-panel-scenario"):
+            st.markdown(ag.panel_label("01 · Scenario"), unsafe_allow_html=True)
+            name = st.selectbox("Scenario", list(AGENT_SCENARIOS))
+            sc = AGENT_SCENARIOS[name]
+            st.markdown(f"<div class='sv-note'>User's request</div><div class='sv-aegis-req'>{esc(sc['task'])}</div>",
+                        unsafe_allow_html=True)
+            docs = []
+            for i, d in enumerate(sc["documents"]):
+                docs.append(st.text_area(f"Document {i + 1} the agent reads", d, height=110, key=f"{name}-{i}"))
+    with right:
+        with st.container(border=True, key="sv-panel-controls"):
+            st.markdown(ag.panel_label("02 · Controls"), unsafe_allow_html=True)
+            san = st.toggle("Also clean documents before the agent reads them", value=False,
+                            help="Off: the agent reads the raw documents and only the policy gate protects it. On: flagged segments are removed first, so most injected calls are never proposed.")
+            conf = st.toggle("A human approves actions that need confirmation", value=False,
+                             help="Simulates a person clicking 'approve' on CONFIRM decisions. Denied calls stay denied.")
+            st.markdown("<div class='sv-note' style='margin:.8rem 0'>With cleaning off, the policy gate is the only protection. "
+                        "Changing a control does not re-run the agents: select Run both agents again.</div>", unsafe_allow_html=True)
+            run_clicked = st.button("Run both agents", type="primary", width="stretch")
+
+    if not run_clicked:
         st.info("Select **Run both agents** to compare. With cleaning off, the policy gate is the only protection.")
         return
     agent = ObedientAgent(get_scanner(), get_settings().egress_allowlist)
@@ -268,50 +282,42 @@ def agent_page() -> None:
         st.error(str(exc))
         return
 
+    st.markdown(ag.panel_label("03 · Protected versus unprotected"), unsafe_allow_html=True)
     a, b = st.columns(2, gap="large")
-    for col, run, title in ((a, unprot, "Without Sieve"), (b, prot, "With Sieve")):
+    for col, run, title, sub, key in (
+        (a, unprot, "Without Sieve", "No policy gate. Every proposed call runs, including calls injected by the documents.", "sv-panel-unprot"),
+        (b, prot, "With Sieve", "The policy gate P1–P5 decides each call before it can run. Denied calls never reach a tool.", "sv-panel-prot"),
+    ):
         with col:
-            st.markdown(f"### {title}")
-            if run.protected and run.session:
-                v = run.session.taint
-                st.markdown(f"Session taint: {pill(v)}", unsafe_allow_html=True)
-            rows = []
-            for r in run.records:
-                arg = ", ".join(f"{k}={str(v)[:40]}" for k, v in r.call.args.items() if k not in ("body", "data"))
-                rows.append({"Tool": r.call.tool, "From": r.call.origin, "Arguments": arg,
-                             "Decision": r.decision.action, "Ran": "yes" if r.executed else "no",
-                             "Policy": " ".join(dict.fromkeys(r.decision.rule_ids)) or "–"})
-            if rows:
-                st.dataframe(pd.DataFrame(rows)[["Tool", "Decision", "Ran", "Policy", "From", "Arguments"]],
-                             hide_index=True, use_container_width=True,
-                             column_config={"Tool": st.column_config.TextColumn(width="small"),
-                                            "Decision": st.column_config.TextColumn(width="small"),
-                                            "Ran": st.column_config.TextColumn(width="small"),
-                                            "Policy": st.column_config.TextColumn(width="small"),
-                                            "From": st.column_config.TextColumn(width="small")})
-            else:
-                st.markdown("<span class='sv-note'>No tool calls proposed.</span>", unsafe_allow_html=True)
-            dmg = run.world.damage
-            st.markdown("**Sandbox after the run**")
-            if dmg:
-                st.markdown("<ul class='sv-damage'>" + "".join(f"<li>{esc(d)}</li>" for d in dmg) + "</ul>", unsafe_allow_html=True)
-            else:
-                st.markdown(f"<span style='color:{VERDICT['ALLOW']};font-weight:600'>No harmful side effects.</span>",
+            with st.container(border=True, key=key):
+                st.markdown(f"<div class='sv-col-title'>{esc(title)}</div><div class='sv-col-sub'>{esc(sub)}</div>",
                             unsafe_allow_html=True)
-            if run.world.notes:
-                st.markdown(f"<span class='sv-note'>Note saved for the user: {esc(run.world.notes[0])}</span>", unsafe_allow_html=True)
+                st.markdown(ag.tally(run), unsafe_allow_html=True)
+                if run.protected and run.session:
+                    st.markdown(ag.taint_card(run.session.taint), unsafe_allow_html=True)
+                if run.records:
+                    st.markdown("".join(ag.call_card(r, run.protected) for r in run.records), unsafe_allow_html=True)
+                else:
+                    st.markdown("<span class='sv-note'>No tool calls proposed.</span>", unsafe_allow_html=True)
+                st.markdown(ag.sandbox_block(run.world), unsafe_allow_html=True)
+
     denied = [r for r in prot.records if not r.executed]
     if denied:
-        st.markdown("#### Why calls were stopped")
-        for r in denied:
-            items = "".join(f"<li>{esc(reason)}</li>" for reason in dict.fromkeys(r.decision.reasons))
-            st.markdown(f"<p><b>{esc(r.call.tool)}</b>: {r.decision.action}</p><ul>{items}</ul>", unsafe_allow_html=True)
-    with st.expander("Policy rules"):
-        st.markdown("- **P1 Session lock** — after a blocked injection is read, network, destructive and payment tools are locked; reading and saving local notes still work.\n"
-                    "- **P2 Argument provenance** — URLs, domains, e-mail addresses and paths that appear in flagged content cannot be used as arguments.\n"
-                    f"- **P3 Egress allowlist** — destinations outside {', '.join(get_settings().egress_allowlist)} need approval, and are denied once the session is tainted.\n"
-                    "- **P4 Dangerous commands** — shell payloads like `rm -rf` or `curl … | sh` are denied.\n"
-                    "- **P5 Human in the loop** — destructive and payment actions always need approval.")
+        st.markdown(ag.panel_label("04 · Why calls were stopped"), unsafe_allow_html=True)
+        st.markdown("".join(ag.stop_card(r) for r in denied), unsafe_allow_html=True)
+    with st.expander("Policy rules P1–P5"):
+        st.markdown(
+            ag.rule_card("P1", "Session lock",
+                         "After a blocked injection is read, network, destructive and payment tools are locked; reading and saving local notes still work.")
+            + ag.rule_card("P2", "Argument provenance",
+                           "URLs, domains, e-mail addresses and paths that appear in flagged content cannot be used as arguments.")
+            + ag.rule_card("P3", "Egress allowlist",
+                           f"Destinations outside {', '.join(get_settings().egress_allowlist)} need approval, and are denied once the session is tainted.")
+            + ag.rule_card("P4", "Dangerous commands",
+                           "Shell payloads like `rm -rf` or `curl … | sh` are denied.")
+            + ag.rule_card("P5", "Human in the loop",
+                           "Destructive and payment actions always need approval."),
+            unsafe_allow_html=True)
 
 
 # ---------------------------------------------------------------------------- Evaluation
