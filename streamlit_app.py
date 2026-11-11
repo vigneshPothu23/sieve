@@ -14,7 +14,7 @@ st.set_page_config(
     page_title="Sieve · Secure Workspace",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="auto",  # expanded on desktop; collapsed on phones so the header Sign out is not covered
 )
 
 # Read optional Streamlit secrets and expose SIEVE_* settings to existing modules.
@@ -40,6 +40,7 @@ from sieve.auth import (  # noqa: E402
 )
 from ui.login import LOGIN_HEADER, inject_login_css, login_hero  # noqa: E402
 from ui.nexus import account_card, audit_strip, inject_nexus_css, nexus_header, panel_label  # noqa: E402
+from ui.session_bar import session_bar  # noqa: E402
 from ui.theme import inject_css  # noqa: E402
 
 inject_css()
@@ -173,11 +174,6 @@ def admin_page() -> None:
                     st.error(str(exc))
 
 
-def logout() -> None:
-    st.session_state.pop("sieve_user", None)
-    st.rerun()
-
-
 def main() -> None:
     user = st.session_state.get("sieve_user")
     if not user:
@@ -191,10 +187,9 @@ def main() -> None:
     role = user["role"]
     with st.sidebar:
         st.markdown("## SIEVE")
-        st.caption(f'{user["display_name"]} · {ROLE_LABELS[role]}')
-        st.divider()
-        if st.button("Sign out", use_container_width=True):
-            logout()
+
+    # One global header for every authenticated workspace: identity + Sign out, visible without the sidebar.
+    session_bar(user)
 
     if has_module_access(role, "user_management"):
         admin_page()
