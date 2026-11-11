@@ -54,28 +54,6 @@ def history() -> list[dict]:
     return st.session_state.setdefault("history", [])
 
 
-def sidebar() -> None:
-    sc = get_scanner()
-    m = sc.model
-    with st.sidebar:
-        st.markdown("### Sieve")
-        st.caption("Screens untrusted text before an LLM reads it, and stops agents from acting on injected instructions.")
-        st.markdown("#### Model status")
-        st.markdown(
-            f"<div class='sv-note'>Loaded ✓ version {esc(m.version)}<br>"
-            f"{m.n_features:,} text features, 8 rule families<br>"
-            f"Review at p ≥ {sc.review_t:.3f}, block at p ≥ {sc.block_t:.3f}<br>"
-            f"Model file {DEFAULT_MODEL_PATH.stat().st_size / 1e6:.2f} MB, JSON (no pickle)<br>"
-            f"Trained {esc(m.metadata.get('trained_at', '?'))}</div>", unsafe_allow_html=True)
-        n = len(history())
-        st.markdown("#### This session")
-        st.markdown(f"<div class='sv-note'>{n} scan{'s' if n != 1 else ''}. History lives only in this browser "
-                    "session and is not stored on the server.</div>", unsafe_allow_html=True)
-        if n and st.button("Clear history", use_container_width=True):
-            st.session_state["history"] = []
-            st.rerun()
-
-
 def _why(result) -> str:
     flagged = result.flagged
     if not result.segments:
@@ -235,6 +213,9 @@ def _history_table() -> None:
     with st.container(border=True, key="sv-panel-history"):
         st.markdown(pr.panel_label("This session's scans"), unsafe_allow_html=True)
         st.markdown(pr.history_table(h), unsafe_allow_html=True)
+        if st.button("Clear history"):
+            st.session_state["history"] = []
+            st.rerun()
 
 
 # ---------------------------------------------------------------------------- Agent firewall (Aegis)

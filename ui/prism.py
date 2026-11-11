@@ -20,7 +20,7 @@ _PRISM_CSS = """
 
 [data-testid="stApp"]:has(.sv-prism) { background: #121B17; }
 [data-testid="stApp"]:has(.sv-prism) header[data-testid="stHeader"] { background: transparent; }
-[data-testid="stApp"]:has(.sv-prism) .block-container { max-width: 1280px; padding-top: 2.5rem; }
+[data-testid="stApp"]:has(.sv-prism) .block-container { max-width: none; padding-top: 2.5rem; }
 [data-testid="stApp"]:has(.sv-prism) h1,
 [data-testid="stApp"]:has(.sv-prism) h2,
 [data-testid="stApp"]:has(.sv-prism) h3,

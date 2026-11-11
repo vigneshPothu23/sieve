@@ -31,7 +31,7 @@ _VANTAGE_CSS = """
 
 [data-testid="stApp"]:has(.sv-vantage) { background: #121B17; }
 [data-testid="stApp"]:has(.sv-vantage) header[data-testid="stHeader"] { background: transparent; }
-[data-testid="stApp"]:has(.sv-vantage) .block-container { max-width: 1280px; padding-top: 2.5rem; }
+[data-testid="stApp"]:has(.sv-vantage) .block-container { max-width: none; padding-top: 2.5rem; }
 [data-testid="stApp"]:has(.sv-vantage) h1,
 [data-testid="stApp"]:has(.sv-vantage) h2,
 [data-testid="stApp"]:has(.sv-vantage) h3,

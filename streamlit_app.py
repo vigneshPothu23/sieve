@@ -14,7 +14,7 @@ st.set_page_config(
     page_title="Sieve · Secure Workspace",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="auto",  # expanded on desktop; collapsed on phones so the header Sign out is not covered
+    initial_sidebar_state="collapsed",  # no sidebar is used; keep it closed
 )
 
 # Read optional Streamlit secrets and expose SIEVE_* settings to existing modules.
@@ -185,10 +185,8 @@ def main() -> None:
         return
 
     role = user["role"]
-    with st.sidebar:
-        st.markdown("## SIEVE")
 
-    # One global header for every authenticated workspace: identity + Sign out, visible without the sidebar.
+    # One global header for every authenticated workspace: identity + Sign out. No sidebar.
     session_bar(user)
 
     if has_module_access(role, "user_management"):
@@ -215,8 +213,8 @@ def main() -> None:
         st.error("No workspace is assigned to this account. Contact the administrator.")
         return
 
-    pages.sidebar()
-    navigation = st.navigation(module_pages)
+    # Each account has exactly one workspace, so the navigation is hidden rather than shown in a sidebar.
+    navigation = st.navigation(module_pages, position="hidden")
     navigation.run()
 
 

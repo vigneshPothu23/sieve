@@ -17,7 +17,7 @@ _NEXUS_CSS = """
 
 [data-testid="stApp"]:has(.sv-nexus) { background: #121B17; }
 [data-testid="stApp"]:has(.sv-nexus) header[data-testid="stHeader"] { background: transparent; }
-[data-testid="stApp"]:has(.sv-nexus) .block-container { max-width: 1280px; padding-top: 2.5rem; }
+[data-testid="stApp"]:has(.sv-nexus) .block-container { max-width: none; padding-top: 2.5rem; }
 [data-testid="stApp"]:has(.sv-nexus) h1,
 [data-testid="stApp"]:has(.sv-nexus) h2,
 [data-testid="stApp"]:has(.sv-nexus) h3,
