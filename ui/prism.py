@@ -105,6 +105,9 @@ _PRISM_CSS = """
 .sv-match { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: #121B17; border: 1px solid #2B3A33;
   padding: 1px 6px; border-radius: 6px; color: #F2EFE6; word-break: break-word; }
 .sv-rule { font-size: 14px; color: #F2EFE6; margin: .3rem 0; line-height: 1.5; }
+[data-testid="stApp"]:has(.sv-prism) .sv-adv { margin: .6rem 0 0; border-top: 1px solid #2B3A33; padding-top: .5rem; }
+[data-testid="stApp"]:has(.sv-prism) .sv-adv summary { cursor: pointer; font-size: 13px; color: #8CA196; padding: 4px 0; }
+[data-testid="stApp"]:has(.sv-prism) .sv-adv-h { font-size: 13px; font-weight: 600; color: #F2EFE6; margin: .5rem 0 .2rem; }
 .sv-finding { border-left: 3px solid #8CA196; padding: .4rem .8rem; margin: .5rem 0; font-size: 14px; color: #F2EFE6; }
 .sv-finding .excerpt { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: #8CA196; display: block; margin-top: 4px; word-break: break-word; }
 
@@ -199,13 +202,20 @@ def inject_prism_css() -> None:
     st.markdown(_PRISM_CSS, unsafe_allow_html=True)
 
 
+def _identity(display_name: str, username: str) -> str:
+    """Show the account once when the display name and username are the same."""
+    if display_name and display_name != username:
+        return f"{esc(display_name)} · {esc(username)}"
+    return esc(display_name or username)
+
+
 def prism_header(display_name: str, username: str) -> None:
     """Top bar with the product and workspace name, plus the signed-in analyst (real session data)."""
     st.markdown(
         '<div class="sv-prism"></div>'
         '<div class="sv-prism-bar">'
         '<span class="sv-prism-brand"><span class="sv-prism-dot"></span>SIEVE // PRISM INSPECT</span>'
-        f'<span class="sv-prism-user">{esc(display_name)} · {esc(username)}</span>'
+        f'<span class="sv-prism-user">{_identity(display_name, username)}</span>'
         "</div>",
         unsafe_allow_html=True,
     )

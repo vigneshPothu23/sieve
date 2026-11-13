@@ -23,7 +23,7 @@ def test_render_document_escapes_html():
     ("Support e-mail with an exfiltration attempt", True),
     ("Tool output with zero-width obfuscation", True),
     ("Document with smuggled Unicode tag text", True),
-    ("Recipe with imperative steps (benign)", False),
+    ("Recipe with imperative steps", False),
 ])
 def test_sample_regressions(name, expect_flag):
     assert (Scanner().scan(SAMPLES[name]["text"]).verdict != "ALLOW") == expect_flag
