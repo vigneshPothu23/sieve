@@ -88,10 +88,9 @@ def inspect_page() -> None:
     user = st.session_state.get("sieve_user") or {}
     pr.inject_prism_css()
     pr.prism_header(user.get("display_name", ""), user.get("username", ""))
-    st.markdown("<h1 class='sv-prism-h1'>Inspect untrusted content</h1>"
-                "<p class='sv-prism-sub'>Paste a web page, e-mail, retrieved document or tool output that an AI system is about "
-                "to read. Sieve marks the segments that try to instruct the AI, shows exactly why, and produces a cleaned "
-                "version you can pass on.</p>", unsafe_allow_html=True)
+    st.markdown("<h1 class='sv-prism-h1'>Check content before an AI reads it</h1>"
+                "<p class='sv-prism-sub'>Paste or choose content. SIEVE finds instructions aimed at an AI and explains each one.</p>",
+                unsafe_allow_html=True)
 
     names = ["Write or paste your own"] + list(SAMPLES)
     c1, c2 = st.columns([3, 2])
@@ -140,25 +139,22 @@ def inspect_page() -> None:
     st.markdown(pr.pipeline(res), unsafe_allow_html=True)
     st.markdown(pr.verdict_card(res, _why(res)), unsafe_allow_html=True)
 
-    left, mid, right = st.columns([1.15, 1, 1.15], gap="medium")
-    with left:
-        with st.container(border=True, key="sv-panel-segments"):
-            st.markdown(pr.panel_label("01 · Normalised segments",
-                                       f'<span class="sv-pill">{len(res.segments)} segment(s)</span>'),
-                        unsafe_allow_html=True)
-            st.markdown(pr.segment_cards(res), unsafe_allow_html=True)
-            st.caption("Hidden text is shown inline, because the AI reads it even when people cannot see it.")
-    with mid:
-        with st.container(border=True, key="sv-panel-evidence"):
-            _evidence(res)
-    with right:
-        with st.container(border=True, key="sv-panel-output"):
-            _sanitised_output(res, src)
+    # One reading column: verdict, segments, evidence, sanitised output, then history.
+    with st.container(border=True, key="sv-panel-segments"):
+        st.markdown(pr.panel_label("Segments",
+                                   f'<span class="sv-pill">{len(res.segments)} analysed · {len(res.flagged)} flagged</span>'),
+                    unsafe_allow_html=True)
+        st.markdown(pr.segment_cards(res), unsafe_allow_html=True)
+        st.caption("Hidden text is shown inline, because the AI reads it even when people cannot see it.")
+    with st.container(border=True, key="sv-panel-evidence"):
+        _evidence(res)
+    with st.container(border=True, key="sv-panel-output"):
+        _sanitised_output(res, src)
     _history_table()
 
 
 def _sanitised_output(res, src: str) -> None:
-    st.markdown(pr.panel_label("03 · Sanitised output"), unsafe_allow_html=True)
+    st.markdown(pr.panel_label("Sanitised output"), unsafe_allow_html=True)
     level = st.radio("Remove segments at", ["Needs review and above", "Blocked only"], horizontal=True)
     dm = st.toggle("Datamark words (spotlighting)", value=False,
                    help="Interleaves a marker between words so the model can tell data from instructions.")
@@ -168,15 +164,18 @@ def _sanitised_output(res, src: str) -> None:
     st.code(san.llm_context, language=None, wrap_lines=True)
     report = res.to_dict()
     report["sanitized"] = {"text": san.text, "llm_context": san.llm_context, "removed_segments": san.removed}
-    st.download_button("Download technical report (JSON)", json.dumps(report, indent=2, default=str), "sieve-report.json",
-                       "application/json", width="stretch")
-    st.download_button("Download cleaned text", san.text, "sieve-cleaned.txt", "text/plain", width="stretch")
+    d1, d2 = st.columns(2)
+    with d1:
+        st.download_button("Download cleaned text", san.text, "sieve-cleaned.txt", "text/plain", width="stretch")
+    with d2:
+        st.download_button("Download technical report (JSON)", json.dumps(report, indent=2, default=str), "sieve-report.json",
+                           "application/json", width="stretch")
 
 
 def _evidence(res) -> None:
     sc = get_scanner()
     hidden = [f for f in res.findings if f.kind in FINDING_TEXT]
-    st.markdown(pr.panel_label("02 · Evidence & why"), unsafe_allow_html=True)
+    st.markdown(pr.panel_label("Why it was flagged"), unsafe_allow_html=True)
     if hidden:
         for f in hidden:
             detail = f.detail if f.kind in ("zero_width", "homoglyph") else ""
